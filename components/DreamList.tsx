@@ -54,25 +54,21 @@ export default function DreamList() {
 
     return (
         <View>
-            <Text style={styles.title}>Liste des Rêves :</Text>
-            {dreams.length > 0 ? (
-                dreams.map((dream, index) => (
-                    <Text key={index} style={styles.dreamText}>
-                        {dream.dreamText} - {dream.isLucidDream ? 'Lucide' : 'Non Lucide'}{' '}
-                    </Text>
-                ))
-            ) : (
-                <Text style={styles.dreamText}>Aucun rêve enregistré</Text>
-            )}
-
-            <Button
-                mode="contained"
-                onPress={handleResetDreams}
-                style={styles.button}
-            >
-                Reset Dreams
-            </Button>
-        </View>
+      <Text style={styles.title}>Liste des Rêves :</Text>
+      {dreams.map((dream, index) => (
+        <Text key={index} style={styles.dreamText}>
+          {dream.dreamText} - {dream.isLucidDream ? 'Lucide' : 'Non Lucide'} - {dream.todayDate}
+          <br/>
+          Hashtags:
+          <br/>
+          1. {dream.hashtags.hashtag1.id} - {dream.hashtags.hashtag1.label}
+          <br/>
+          2. {dream.hashtags.hashtag2.id} - {dream.hashtags.hashtag2.label}
+          <br/>
+          3. {dream.hashtags.hashtag3.id} - {dream.hashtags.hashtag3.label}
+        </Text>
+      ))}
+    </View>
     );
 }
 
