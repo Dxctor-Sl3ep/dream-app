@@ -66,7 +66,17 @@ export default function DreamList() {
   2. {dream.hashtags?.hashtag2?.label ?? '-'}
   {'\n'}
   3. {dream.hashtags?.hashtag3?.label ?? '-'}
+{'\n'}
+  Tonalité: {dream.tone ?? '-'}
+  {'\n'}
+  Clarté: {typeof dream.clarity === 'number' ? `${dream.clarity}/10` : '-'}
+  {'\n'}
+  État émotionnel avant: {typeof dream.emotionBefore === 'number' ? `${dream.emotionBefore}/10` : '-'}
+  {'\n'}
+  État émotionnel après: {typeof dream.emotionAfter === 'number' ? `${dream.emotionAfter}/10` : '-'}
 </Text>
+
+
 
       ))}
       <Button mode="contained" onPress={handleResetDreams} style={styles.button}>

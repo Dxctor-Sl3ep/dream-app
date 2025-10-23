@@ -5,6 +5,10 @@ export interface DreamData {
   isLucidDream: boolean;
   isNightmare: boolean;
   isNormalDream: boolean;
+  tone?: 'positive' | 'negative' | 'neutral' | null;
+  clarity?: number;
+  emotionBefore?: number;
+  emotionAfter?: number;
   hashtags?: DreamHashtags;
   todayDate: Date;
   };
