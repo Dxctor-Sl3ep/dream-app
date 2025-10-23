@@ -4,9 +4,9 @@ import { Hashtag } from "./Hashtag";
 export interface DreamData {
   dreamText: string;
   isLucidDream: boolean;
-  hastag1: Hashtag;
-  hastag2: Hashtag;
-  hastag3: Hashtag;
+  hashtag1: Hashtag;
+  hashtag2: Hashtag;
+  hashtag3: Hashtag;
   characters: string[];
   location: string;
   personalMeaning: string;
