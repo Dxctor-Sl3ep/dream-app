@@ -1,8 +1,9 @@
 // components/DreamList.tsx
-
 import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
 import { DreamData } from '@/interfaces/DreamData';
 import { AsyncStorageService } from '@/services/AsyncStorageService';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
@@ -13,8 +14,9 @@ export default function DreamList() {
 
     const fetchData = async () => {
         try {
-            const formDataArray: DreamData[] =
-                await AsyncStorageService.getData(AsyncStorageConfig.keys.dreamsArrayKey);
+            const formDataArray: DreamData[] = await AsyncStorageService.getData(
+                AsyncStorageConfig.keys.dreamsArrayKey
+            );
             setDreams(formDataArray);
         } catch (error) {
             console.error('Erreur lors de la récupération des données:', error);
@@ -54,10 +56,17 @@ export default function DreamList() {
                     <Card key={index} style={styles.card}>
                         <Card.Content>
                             <Text style={styles.dreamText}>{dream.dreamText}</Text>
-
                             <Text style={styles.lucid}>
                                 {dream.isLucidDream ? '💡 Rêve Lucide' : '💤 Rêve Non Lucide'}
                             </Text>
+
+                            {/* 🕓 Affichage de la date et heure du coucher */}
+                            {dream.sleepDate && (
+                                <Text style={styles.detail}>
+                                    🕓 Heure du coucher :{' '}
+                                    {format(new Date(dream.sleepDate), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
+                                </Text>
+                            )}
 
                             {dream.characters && dream.characters.length > 0 && (
                                 <Text style={styles.detail}>
@@ -93,11 +102,7 @@ export default function DreamList() {
                 <Text style={styles.noDream}>Aucun rêve enregistré</Text>
             )}
 
-            <Button
-                mode="contained"
-                onPress={handleResetDreams}
-                style={styles.button}
-            >
+            <Button mode="contained" onPress={handleResetDreams} style={styles.button}>
                 Réinitialiser les rêves
             </Button>
         </ScrollView>

@@ -12,4 +12,5 @@ export interface DreamData {
   personalMeaning: string;
   emotionalIntensity: number;
   sleepQuality: number;
+  sleepDate: string;
 }

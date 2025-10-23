@@ -2,13 +2,18 @@ import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
 import { DreamData } from '@/interfaces/DreamData';
 import { AsyncStorageService } from '@/services/AsyncStorageService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Slider from '@react-native-community/slider';
+import { format } from 'date-fns';
 import React, { useState } from 'react';
+import ReactDatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import {
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,11 +32,14 @@ export default function DreamForm() {
   const [personalMeaning, setPersonalMeaning] = useState<string>('');
   const [emotionalIntensity, setEmotionalIntensity] = useState<number>(5);
   const [sleepQuality, setSleepQuality] = useState<number>(5);
+  const [sleepDate, setSleepDate] = useState<Date>(new Date());
+  const [showPicker, setShowPicker] = useState<boolean>(false);
 
   const handleDreamSubmission = async (): Promise<void> => {
     try {
-      const formDataArray: DreamData[] =
-        await AsyncStorageService.getData(AsyncStorageConfig.keys.dreamsArrayKey);
+      const formDataArray: DreamData[] = await AsyncStorageService.getData(
+        AsyncStorageConfig.keys.dreamsArrayKey
+      );
 
       const characters = charactersInput
         .split(',')
@@ -49,11 +57,14 @@ export default function DreamForm() {
         personalMeaning,
         emotionalIntensity,
         sleepQuality,
+        sleepDate: sleepDate.toISOString(), // ✅ ajouté ici
       };
 
       formDataArray.push(newDream);
-
-      await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, formDataArray);
+      await AsyncStorageService.setData(
+        AsyncStorageConfig.keys.dreamsArrayKey,
+        formDataArray
+      );
 
       console.log(
         'AsyncStorage: ',
@@ -68,6 +79,7 @@ export default function DreamForm() {
       setPersonalMeaning('');
       setEmotionalIntensity(5);
       setSleepQuality(5);
+      setSleepDate(new Date());
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des données:', error);
     }
@@ -128,6 +140,45 @@ export default function DreamForm() {
               numberOfLines={4}
               style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
             />
+
+            {/* --- Sélecteur de date et heure du sommeil --- */}
+            <View style={styles.dateTimeContainer}>
+              <Text style={styles.sliderLabel}>Heure du coucher :</Text>
+
+              {Platform.OS === 'web' ? (
+                // ✅ Version Web : ReactDatePicker interactif
+                <ReactDatePicker
+                  selected={sleepDate}
+                  onChange={(date: Date) => setSleepDate(date)}
+                  showTimeSelect
+                  dateFormat="dd/MM/yyyy à HH:mm"
+                  timeIntervals={15}
+                  className="react-datepicker-input"
+                />
+              ) : (
+                // ✅ Version native : DateTimePicker
+                <>
+                  <Pressable onPress={() => setShowPicker(true)} style={styles.dateDisplay}>
+                    <Text style={styles.dateText}>
+                      {format(sleepDate, "dd/MM/yyyy 'à' HH:mm")}
+                    </Text>
+                  </Pressable>
+
+                  {showPicker && (
+                    <DateTimePicker
+                      value={sleepDate}
+                      mode="datetime"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(event, selectedDate) => {
+                        setShowPicker(Platform.OS === 'ios');
+                        if (selectedDate) setSleepDate(selectedDate);
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+
 
             {/* --- Barre : Intensité émotionnelle --- */}
             <View style={styles.sliderContainer}>
@@ -211,5 +262,22 @@ const styles = StyleSheet.create({
   slider: {
     width: '100%',
     height: 40,
+  },
+  dateTimeContainer: {
+    marginVertical: 12,
+    width: width * 0.8,
+    alignSelf: 'center',
+  },
+  dateDisplay: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 6,
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#333',
   },
 });
