@@ -14,10 +14,7 @@ export default function ModalEditor() {
   const router = useRouter();
 
   const [all, setAll] = useState<DreamData[] | null>(null);
-  const current = useMemo(
-    () => all?.find((d) => d.id === id) ?? null,
-    [all, id]
-  );
+  const current = useMemo(() => all?.find((d) => d.id === id) ?? null, [all, id]);
 
   // Form state
   const [dreamText, setDreamText] = useState('');
@@ -38,6 +35,13 @@ export default function ModalEditor() {
   const [hashtag3, setHashtag3] = useState('');
   const [sleepDate, setSleepDate] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState(false);
+
+  // [ADDED] Exclusivité des 3 types
+  const selectType = (type: 'lucid' | 'nightmare' | 'normal') => {
+    setIsLucidDream(type === 'lucid');
+    setIsNightmare(type === 'nightmare');
+    setIsNormalDream(type === 'normal');
+  };
 
   useEffect(() => {
     (async () => {
@@ -98,7 +102,6 @@ export default function ModalEditor() {
       emotionalIntensity,
       sleepQuality,
       sleepDate: sleepDate.toISOString(),
-      // todayDate conservé tel quel
     };
 
     const next = [...all];
@@ -114,45 +117,35 @@ export default function ModalEditor() {
     router.back();
   };
 
-  const toggleNightmare = () => {
-    const next = !isNightmare;
-    setIsNightmare(next);
-    if (next) setIsNormalDream(false);
-  };
-  const toggleNormal = () => {
-    const next = !isNormalDream;
-    setIsNormalDream(next);
-    if (next) setIsNightmare(false);
-  };
-
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <TextInput label="Rêve" value={dreamText} onChangeText={setDreamText} mode="outlined" multiline style={styles.input} />
+      {/* [CHANGED] garder le focus sur champ: keyboardShouldPersistTaps="always" */}
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="always">
+        <TextInput label="📝 Rêve" value={dreamText} onChangeText={setDreamText} mode="outlined" multiline style={styles.input} />
 
         <View style={{ marginBottom: 12 }}>
-          <Checkbox.Item label="Rêve lucide" status={isLucidDream ? 'checked' : 'unchecked'} onPress={() => setIsLucidDream(!isLucidDream)} />
-          <Checkbox.Item label="Cauchemar" status={isNightmare ? 'checked' : 'unchecked'} onPress={toggleNightmare} />
-          <Checkbox.Item label="Rêve normal" status={isNormalDream ? 'checked' : 'unchecked'} onPress={toggleNormal} />
+          <Checkbox.Item label="🌙 Rêve lucide" status={isLucidDream ? 'checked' : 'unchecked'} onPress={() => selectType('lucid')} />
+          <Checkbox.Item label="😱 Cauchemar" status={isNightmare ? 'checked' : 'unchecked'} onPress={() => selectType('nightmare')} />
+          <Checkbox.Item label="💤 Rêve normal" status={isNormalDream ? 'checked' : 'unchecked'} onPress={() => selectType('normal')} />
         </View>
 
-        <TextInput label="Hashtag 1" value={hashtag1} onChangeText={setHashtag1} mode="outlined" style={styles.input} />
-        <TextInput label="Hashtag 2" value={hashtag2} onChangeText={setHashtag2} mode="outlined" style={styles.input} />
-        <TextInput label="Hashtag 3" value={hashtag3} onChangeText={setHashtag3} mode="outlined" style={styles.input} />
+        <TextInput label="🏷️ Hashtag 1" value={hashtag1} onChangeText={setHashtag1} mode="outlined" style={styles.input} />
+        <TextInput label="🏷️ Hashtag 2" value={hashtag2} onChangeText={setHashtag2} mode="outlined" style={styles.input} />
+        <TextInput label="🏷️ Hashtag 3" value={hashtag3} onChangeText={setHashtag3} mode="outlined" style={styles.input} />
 
         <View style={{ marginBottom: 12 }}>
-          <Checkbox.Item label="Tonalité positive" status={tone === 'positive' ? 'checked' : 'unchecked'} onPress={() => setTone(tone === 'positive' ? null : 'positive')} />
-          <Checkbox.Item label="Tonalité négative" status={tone === 'negative' ? 'checked' : 'unchecked'} onPress={() => setTone(tone === 'negative' ? null : 'negative')} />
-          <Checkbox.Item label="Tonalité neutre" status={tone === 'neutral' ? 'checked' : 'unchecked'} onPress={() => setTone(tone === 'neutral' ? null : 'neutral')} />
+          <Checkbox.Item label="😊 Tonalité positive" status={tone === 'positive' ? 'checked' : 'unchecked'} onPress={() => setTone(tone === 'positive' ? null : 'positive')} />
+          <Checkbox.Item label="☹️ Tonalité négative" status={tone === 'negative' ? 'checked' : 'unchecked'} onPress={() => setTone(tone === 'negative' ? null : 'negative')} />
+          <Checkbox.Item label="😐 Tonalité neutre" status={tone === 'neutral' ? 'checked' : 'unchecked'} onPress={() => setTone(tone === 'neutral' ? null : 'neutral')} />
         </View>
 
-        <TextInput label="Personnages (séparés par des virgules)" value={charactersInput} onChangeText={setCharactersInput} mode="outlined" style={styles.input} />
-        <TextInput label="Lieu du rêve" value={location} onChangeText={setLocation} mode="outlined" style={styles.input} />
-        <TextInput label="Signification personnelle" value={personalMeaning} onChangeText={setPersonalMeaning} mode="outlined" multiline style={styles.input} />
+        <TextInput label="👤 Personnages (séparés par des virgules)" value={charactersInput} onChangeText={setCharactersInput} mode="outlined" style={styles.input} />
+        <TextInput label="📍 Lieu du rêve" value={location} onChangeText={setLocation} mode="outlined" style={styles.input} />
+        <TextInput label="💭 Signification personnelle" value={personalMeaning} onChangeText={setPersonalMeaning} mode="outlined" multiline style={styles.input} />
 
         <View style={{ marginBottom: 12 }}>
           <Button mode="outlined" onPress={() => setShowPicker(true)}>
-            Choisir l’heure du coucher: {format(sleepDate, "dd/MM/yyyy 'à' HH:mm")}
+            🕰️ Choisir l’heure du coucher: {format(sleepDate, "dd/MM/yyyy 'à' HH:mm")}
           </Button>
           {showPicker && (
             <DateTimePicker
@@ -167,11 +160,11 @@ export default function ModalEditor() {
           )}
         </View>
 
-        <TextInput label="Intensité émotionnelle (0-10)" value={String(emotionalIntensity)} onChangeText={(t) => setEmotionalIntensity(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
-        <TextInput label="Qualité du sommeil (0-10)" value={String(sleepQuality)} onChangeText={(t) => setSleepQuality(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
-        <TextInput label="Clarté (0-10)" value={String(clarity)} onChangeText={(t) => setClarity(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
-        <TextInput label="Émotion avant (0-10)" value={String(emotionBefore)} onChangeText={(t) => setEmotionBefore(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
-        <TextInput label="Émotion après (0-10)" value={String(emotionAfter)} onChangeText={(t) => setEmotionAfter(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
+        <TextInput label="😵 Intensité émotionnelle (0-10)" value={String(emotionalIntensity)} onChangeText={(t) => setEmotionalIntensity(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
+        <TextInput label="🛌 Qualité du sommeil (0-10)" value={String(sleepQuality)} onChangeText={(t) => setSleepQuality(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
+        <TextInput label="🔎 Clarté (0-10)" value={String(clarity)} onChangeText={(t) => setClarity(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
+        <TextInput label="⬅️ Émotion avant (0-10)" value={String(emotionBefore)} onChangeText={(t) => setEmotionBefore(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
+        <TextInput label="➡️ Émotion après (0-10)" value={String(emotionAfter)} onChangeText={(t) => setEmotionAfter(Number(t) || 0)} mode="outlined" keyboardType="numeric" style={styles.input} />
 
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Button mode="outlined" onPress={() => router.back()}>Annuler</Button>
