@@ -11,4 +11,10 @@ export interface DreamData {
   emotionAfter?: number;
   hashtags?: DreamHashtags;
   todayDate: Date;
+  characters: string[];
+  location: string;
+  personalMeaning: string;
+  emotionalIntensity: number;
+  sleepQuality: number;
+  sleepDate: string;
   };
