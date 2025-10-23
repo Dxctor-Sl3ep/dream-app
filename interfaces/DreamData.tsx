@@ -1,6 +1,9 @@
+// interfaces/DreamData.tsx
 import { DreamHashtags } from './Hashtag';
-// Définition du type pour un rêve
+
+// [CHANGED] structure : ajout d'un id ; dates en string ISO
 export interface DreamData {
+  id: string; // [ADDED] identifiant stable pour édition/suppression
   dreamText: string;
   isLucidDream: boolean;
   isNightmare: boolean;
@@ -10,11 +13,11 @@ export interface DreamData {
   emotionBefore?: number;
   emotionAfter?: number;
   hashtags?: DreamHashtags;
-  todayDate: Date;
+  todayDate: string;     // [CHANGED] string ISO
   characters: string[];
   location: string;
   personalMeaning: string;
   emotionalIntensity: number;
   sleepQuality: number;
-  sleepDate: string;
-  };
+  sleepDate: string;     // [CHANGED] string ISO
+}

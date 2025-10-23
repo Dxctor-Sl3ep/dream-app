@@ -4,13 +4,14 @@ import { DreamData } from '@/interfaces/DreamData';
 import { AsyncStorageService } from '@/services/AsyncStorageService';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router'; // [CHANGED] +useRouter
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'; // [CHANGED] +Alert, View
 import { Button, Card } from 'react-native-paper';
 
 export default function DreamList() {
   const [dreams, setDreams] = useState<DreamData[]>([]);
+  const router = useRouter(); // [ADDED]
 
   const fetchData = async () => {
     try {
@@ -30,7 +31,7 @@ export default function DreamList() {
   useFocusEffect(
     useCallback(() => {
       fetchData();
-      return () => console.log('DreamList unfocused');
+      return () => {};
     }, [])
   );
 
@@ -43,100 +44,124 @@ export default function DreamList() {
     }
   };
 
+  // [ADDED] suppression d'un item par id
+  const handleDeleteById = async (id: string) => {
+    try {
+      const next = dreams.filter(d => d.id !== id);
+      await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, next);
+      setDreams(next);
+    } catch (e) {
+      console.error('Suppression impossible:', e);
+    }
+  };
+
+  // [ADDED] confirmation de suppression
+  const confirmDelete = (id: string) => {
+    Alert.alert('Supprimer ce rêve ?', 'Action irréversible.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Supprimer', style: 'destructive', onPress: () => handleDeleteById(id) },
+    ]);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🌙 Liste des Rêves :</Text>
+      <Text style={styles.title}>Liste des Rêves</Text>
 
       {dreams.length > 0 ? (
-        dreams.map((dream, index) => (
-          <Card key={index} style={styles.card}>
+        dreams.map((dream) => (
+          <Card key={dream.id} style={styles.card}> {/* [CHANGED] key = id */}
             <Card.Content>
-              {/* 💤 Texte principal */}
               <Text style={styles.dreamText}>{dream.dreamText}</Text>
 
-              {/* 💡 Type de rêve */}
               <Text style={styles.lucid}>
                 {dream.isLucidDream
-                  ? '💡 Rêve Lucide'
+                  ? 'Rêve Lucide'
                   : dream.isNightmare
-                  ? '😱 Cauchemar'
+                  ? 'Cauchemar'
                   : dream.isNormalDream
-                  ? '💤 Rêve Normal'
+                  ? 'Rêve Normal'
                   : ''}
               </Text>
 
-              {/* 🕓 Heure du coucher */}
               {dream.sleepDate && (
                 <Text style={styles.detail}>
-                  🕓 Heure du coucher :{' '}
+                  Heure du coucher :{' '}
                   {format(new Date(dream.sleepDate), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
                 </Text>
               )}
 
-              {/* 📅 Date d’enregistrement */}
               {dream.todayDate && (
                 <Text style={styles.detail}>
-                  📅 Date d’enregistrement :{' '}
+                  Date d’enregistrement :{' '}
                   {format(new Date(dream.todayDate), 'dd MMMM yyyy', { locale: fr })}
                 </Text>
               )}
 
-              {/* 👥 Personnages */}
               {dream.characters?.length > 0 && (
-                <Text style={styles.detail}>👥 Personnages : {dream.characters.join(', ')}</Text>
+                <Text style={styles.detail}>Personnages : {dream.characters.join(', ')}</Text>
               )}
 
-              {/* 📍 Lieu */}
-              {dream.location && <Text style={styles.detail}>📍 Lieu : {dream.location}</Text>}
+              {dream.location && <Text style={styles.detail}>Lieu : {dream.location}</Text>}
 
-              {/* 💭 Signification personnelle */}
               {dream.personalMeaning && (
                 <Text style={styles.detail}>
-                  💭 Signification personnelle : {dream.personalMeaning}
+                  Signification personnelle : {dream.personalMeaning}
                 </Text>
               )}
 
-              {/* 🌡️ Intensité émotionnelle */}
               <Text style={styles.detail}>
-                🌡️ Intensité émotionnelle : {dream.emotionalIntensity ?? '-'} /10
+                Intensité émotionnelle : {dream.emotionalIntensity ?? '-'} /10
               </Text>
 
-              {/* 💤 Qualité du sommeil */}
               <Text style={styles.detail}>
-                😴 Qualité du sommeil : {dream.sleepQuality ?? '-'} /10
+                Qualité du sommeil : {dream.sleepQuality ?? '-'} /10
               </Text>
 
-              {/* 🔖 Hashtags */}
               {(dream.hashtags?.hashtag1?.label ||
                 dream.hashtags?.hashtag2?.label ||
                 dream.hashtags?.hashtag3?.label) && (
                 <Text style={styles.detail}>
-                  🔖 Hashtags :{' '}
+                  Hashtags :{' '}
                   {[dream.hashtags?.hashtag1?.label, dream.hashtags?.hashtag2?.label, dream.hashtags?.hashtag3?.label]
                     .filter(Boolean)
                     .join(', ')}
                 </Text>
               )}
 
-              {/* 🎭 Tonalité */}
-              {dream.tone && <Text style={styles.detail}>🎭 Tonalité : {dream.tone}</Text>}
+              {dream.tone && <Text style={styles.detail}>Tonalité : {dream.tone}</Text>}
 
-              {/* 🌫️ Clarté */}
               {dream.clarity !== undefined && (
-                <Text style={styles.detail}>🌫️ Clarté : {dream.clarity}/10</Text>
+                <Text style={styles.detail}>Clarté : {dream.clarity}/10</Text>
               )}
 
-              {/* ❤️ Émotions avant/après */}
               {(dream.emotionBefore !== undefined || dream.emotionAfter !== undefined) && (
                 <>
                   {dream.emotionBefore !== undefined && (
-                    <Text style={styles.detail}>💗 Émotion avant : {dream.emotionBefore}/10</Text>
+                    <Text style={styles.detail}>Émotion avant : {dream.emotionBefore}/10</Text>
                   )}
                   {dream.emotionAfter !== undefined && (
-                    <Text style={styles.detail}>💖 Émotion après : {dream.emotionAfter}/10</Text>
+                    <Text style={styles.detail}>Émotion après : {dream.emotionAfter}/10</Text>
                   )}
                 </>
               )}
+
+              {/* [ADDED] Actions Edit/Supprimer */}
+              <View style={styles.actions}>
+                <Button
+                  mode="outlined"
+                  onPress={() => router.push({ pathname: '/modal', params: { id: dream.id } })}
+                  style={styles.actionBtn}
+                >
+                  Éditer
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={() => confirmDelete(dream.id)}
+                  style={styles.actionBtn}
+                >
+                  Supprimer
+                </Button>
+              </View>
             </Card.Content>
           </Card>
         ))
@@ -172,7 +197,6 @@ const styles = StyleSheet.create({
   },
   lucid: {
     fontSize: 14,
-    color: '#6200ee',
     marginBottom: 4,
   },
   detail: {
@@ -190,5 +214,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     alignSelf: 'center',
     width: '70%',
+  },
+  actions: { // [ADDED]
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 12,
+  },
+  actionBtn: { // [ADDED]
+    marginLeft: 8,
   },
 });
