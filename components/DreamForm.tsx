@@ -76,6 +76,7 @@ export default function DreamForm() {
         .filter((char) => char.length > 0);
 
       const newDream: DreamData = {
+        id: `dream_${Date.now()}`, // [ADDED]
         dreamText,
         isLucidDream,
         isNightmare,
@@ -89,13 +90,13 @@ export default function DreamForm() {
           hashtag2: { id: `h2-${Date.now()}`, label: hashtag2 },
           hashtag3: { id: `h3-${Date.now()}`, label: hashtag3 },
         },
-        todayDate: new Date(),
+        todayDate: new Date().toISOString(),      // [CHANGED]
         characters,
         location,
         personalMeaning,
         emotionalIntensity,
         sleepQuality,
-        sleepDate: sleepDate.toISOString(),
+        sleepDate: sleepDate.toISOString(),       // [CHANGED]
       };
 
       formDataArray.push(newDream);
@@ -231,27 +232,27 @@ export default function DreamForm() {
 
           {/* Sliders */}
           <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>🌡️ Intensité émotionnelle : {emotionalIntensity}/10</Text>
+            <Text style={styles.sliderLabel}>Intensité émotionnelle : {emotionalIntensity}/10</Text>
             <Slider value={emotionalIntensity} minimumValue={0} maximumValue={10} step={1} onValueChange={setEmotionalIntensity} />
           </View>
 
           <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>💤 Qualité du sommeil : {sleepQuality}/10</Text>
+            <Text style={styles.sliderLabel}>Qualité du sommeil : {sleepQuality}/10</Text>
             <Slider value={sleepQuality} minimumValue={0} maximumValue={10} step={1} onValueChange={setSleepQuality} />
           </View>
 
           <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>🌫️ Clarté du rêve : {clarity}/10</Text>
+            <Text style={styles.sliderLabel}>Clarté du rêve : {clarity}/10</Text>
             <Slider value={clarity} minimumValue={0} maximumValue={10} step={1} onValueChange={setClarity} />
           </View>
 
           <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>💗 Émotion avant : {emotionBefore}/10</Text>
+            <Text style={styles.sliderLabel}>Émotion avant : {emotionBefore}/10</Text>
             <Slider value={emotionBefore} minimumValue={0} maximumValue={10} step={1} onValueChange={setEmotionBefore} />
           </View>
 
           <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>💖 Émotion après : {emotionAfter}/10</Text>
+            <Text style={styles.sliderLabel}>Émotion après : {emotionAfter}/10</Text>
             <Slider value={emotionAfter} minimumValue={0} maximumValue={10} step={1} onValueChange={setEmotionAfter} />
           </View>
 
