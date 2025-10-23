@@ -1,26 +1,26 @@
 // components/DreamList.tsx
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
-import { Button } from 'react-native-paper';
+import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
 import { DreamData } from '@/interfaces/DreamData';
 import { AsyncStorageService } from '@/services/AsyncStorageService';
-import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Button } from 'react-native-paper';
 
 export default function DreamList() {
     const [dreams, setDreams] = useState<DreamData[]>([]);
 
     const fetchData = async () => {
-        try {
-            const formDataArray: DreamData[] = await AsyncStorageService.getData(AsyncStorageConfig.keys.dreamsArrayKey);
-            setDreams(formDataArray);
-        } catch (error) {
-            console.error('Erreur lors de la récupération des données:', error);
-        }
-    };
+  try {
+    const raw = await AsyncStorage.getItem('dreamFormDataArray');
+    const formDataArray: DreamData[] = raw ? JSON.parse(raw) : [];
+    setDreams(formDataArray);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données:', error);
+  }
+};
 
     // Chargement initial
     useEffect(() => {
@@ -53,18 +53,26 @@ export default function DreamList() {
     };
 
     return (
-        <View>
+        <ScrollView>
       <Text style={styles.title}>Liste des Rêves :</Text>
       {dreams.map((dream, index) => (
         <Text key={index} style={styles.dreamText}>
-	      {dream.dreamText} - {dream.isLucidDream ? 'Lucide' : 'Non Lucide'} - {dream.isNightmare ? 'Cauchemar' : 'Non Cauchemar'} - {dream.isNormalDream ? 'Rêve Normal' : 'Non Rêve Normal'} - {dream.todayDate}
-	      {'\n'}Hashtags:{'\n'}
-	      1. {dream.hashtag1.id} - {dream.hashtag1.label}{'\n'}
-	      2. {dream.hashtag2.id} - {dream.hashtag2.label}{'\n'}
-	      3. {dream.hashtag3.id} - {dream.hashtag3.label}
-	    </Text>
+          {dream.dreamText} - {dream.isLucidDream ? 'Lucide' : 'Non Lucide'} {dream.isNightmare ? 'Cauchemar' : 'Rêve Normal'} {dream.isNormalDream}- {dream.todayDate}
+          <br/>
+          Hashtags:
+          <br/>
+1. {dream.hashtags?.hashtag1?.id ?? '-'} - {dream.hashtags?.hashtag1?.label ?? '-'}
+<br/>
+2. {dream.hashtags?.hashtag2?.id ?? '-'} - {dream.hashtags?.hashtag2?.label ?? '-'}
+<br/>
+3. {dream.hashtags?.hashtag3?.id ?? '-'} - {dream.hashtags?.hashtag3?.label ?? '-'}
+
+        </Text>
       ))}
-    </View>
+      <Button mode="contained" onPress={handleResetDreams} style={styles.button}>
+        Réinitialiser les rêves
+      </Button>
+    </ScrollView>
     );
 }
 

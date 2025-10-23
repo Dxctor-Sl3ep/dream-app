@@ -1,21 +1,20 @@
 // components/DreamForm.tsx
 
+import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
+import { DreamData } from '@/interfaces/DreamData';
+import { AsyncStorageService } from '@/services/AsyncStorageService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
-  TouchableWithoutFeedback,
   Platform,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native';
-import { TextInput, Button, Checkbox } from 'react-native-paper';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DreamData } from '@/interfaces/DreamData';
-import { AsyncStorageService } from '@/services/AsyncStorageService';
-import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
-import { Hashtag } from '@/interfaces/DreamData';
+import { Button, Checkbox, TextInput } from 'react-native-paper';
 
 const { width } = Dimensions.get('window');
 
@@ -24,111 +23,89 @@ export default function DreamForm() {
   const [isLucidDream, setIsLucidDream] = useState<boolean>(false);
   const [isNightmare, setIsNightmare] = useState<boolean>(false);
   const [isNormalDream, setIsNormalDream] = useState<boolean>(false);
-  const [tagInput, setTagInput] = useState<string>('')
-  const [tags, setTags] = useState<string[]>([]);
-  const [hashtag1, setHashtag1] = useState<Hashtag>({label: '', id: ''});
-  const [hashtag2, setHashtag2] = useState<Hashtag>({label: '', id: ''});
-  const [hashtag3, setHashtag3] = useState<Hashtag>({label: '', id: ''});
+  const [hashtag1, setHashtag1] = useState('');
+  const [hashtag2, setHashtag2] = useState('');
+  const [hashtag3, setHashtag3] = useState('');
 
+  const toggleNightmare = () => {
+    const next = !isNightmare;
+    setIsNightmare(next);
+    if (next) setIsNormalDream(false);
+  };
 
-  
+  const toggleNormal = () => {
+    const next = !isNormalDream;
+    setIsNormalDream(next);
+    if (next) setIsNightmare(false);
+  };
+
   const handleDreamSubmission = async (): Promise<void> => {
     try {
+      const formDataArray: DreamData[] =
+        await AsyncStorageService.getData(AsyncStorageConfig.keys.dreamsArrayKey);
 
-      const formDataArray: DreamData[] = await AsyncStorageService.getData(AsyncStorageConfig.keys.dreamsArrayKey);
-
-      // Ajouter le nouveau rêve
-      formDataArray.push({ dreamText, isLucidDream, hashtag1, hashtag2, hashtag3 });
-
-      await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, formDataArray);
-
-      console.log(
-        'AsyncStorage: ',
-        await AsyncStorage.getItem(AsyncStorageConfig.keys.dreamsArrayKey)
-      );
-
-      try {
-      // Récupérer le tableau actuel depuis AsyncStorage
-      const existingData = await AsyncStorage.getItem('dreamFormDataArray');
-      const formDataArray = existingData ? JSON.parse(existingData) : [];
-
-      // Trouver les IDs des hashtags
       const hashtag1Id = await findHashtagIdByLabel(hashtag1);
       const hashtag2Id = await findHashtagIdByLabel(hashtag2);
       const hashtag3Id = await findHashtagIdByLabel(hashtag3);
 
-      // Ajouter le nouveau formulaire au tableau
-      formDataArray.push({
-        dreamText: dreamText,
-        isLucidDream: isLucidDream,
+      const newEntry: DreamData = {
+        dreamText,
+        isLucidDream,
+        isNightmare,
+        isNormalDream,
         todayDate: new Date(),
+      } as DreamData;
+
+      const newEntryWithTags = {
+        ...newEntry,
         hashtags: {
           hashtag1: { id: hashtag1Id, label: hashtag1 },
           hashtag2: { id: hashtag2Id, label: hashtag2 },
           hashtag3: { id: hashtag3Id, label: hashtag3 },
         },
-      });
+      };
 
-      // Sauvegarder le tableau mis à jour dans AsyncStorage
-      await AsyncStorage.setItem('dreamFormDataArray', JSON.stringify(formDataArray));
+      formDataArray.push(newEntryWithTags as unknown as DreamData);
+      await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, formDataArray);
 
-      // Réinitialiser les champs du formulaire
+      const existing = await AsyncStorage.getItem('dreamFormDataArray');
+      const rawArray = existing ? JSON.parse(existing) : [];
+      rawArray.push(newEntryWithTags);
+      await AsyncStorage.setItem('dreamFormDataArray', JSON.stringify(rawArray));
+
       setDreamText('');
       setIsLucidDream(false);
+      setIsNightmare(false);
+      setIsNormalDream(false);
       setHashtag1('');
       setHashtag2('');
       setHashtag3('');
-
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde des données:', error);
-    };
-
-
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des données:', error);
     }
-
-    setDreamText('');
-    setIsLucidDream(false);
   };
-  // components/DreamForm.tsx
 
-/**
- * Fonction asynchrone qui cherche l'ID d'un hashtag donné en parcourant
- * les rêves stockés dans AsyncStorage.
- * Si le hashtag est trouvé dans les rêves existants, retourne son ID.
- * Sinon, crée un nouvel ID unique pour ce hashtag et le retourne.
- */
-const findHashtagIdByLabel = async (hashtag: string): Promise<string | null> => {
-  try {
-    // Récupère les données des rêves stockées dans le AsyncStorage
-    const existingDreams = await AsyncStorage.getItem('dreamFormDataArray');
-    const dreamsData: any[] = existingDreams ? JSON.parse(existingDreams) : [];
+  const findHashtagIdByLabel = async (hashtag) => {
+    try {
+      const existingDreams = await AsyncStorage.getItem('dreamFormDataArray');
+      let dreamsData = existingDreams ? JSON.parse(existingDreams) : [];
 
-    // Parcours tous les rêves pour trouver un hashtag existant
-    for (const dream of dreamsData) {
-      const hashtags = (dream.hashtags ?? {}) as Record<string, any>;
-      for (const hashtagKey in hashtags) {
-        const hashtagStored = hashtags[hashtagKey]; // Récupère l'objet du hashtag stocké
-
-        if (hashtagStored?.label === hashtag) {
-          // Si le hashtag est trouvé, renvoie son ID
-          return hashtagStored.id;
+      for (let dream of dreamsData) {
+        for (let hashtagKey in dream.hashtags) {
+          const hashtagStored = dream.hashtags[hashtagKey];
+          if (hashtagStored.label === hashtag) {
+            return hashtagStored.id;
+          }
         }
       }
+
+      const newId = `hashtag-${Math.random().toString(36).substr(2, 9)}`;
+      return newId;
+    } catch (error) {
+      console.error('Erreur lors de la gestion des hashtags:', error);
+      return null;
     }
-
-    // Si le hashtag n'existe pas, crée un nouvel ID
-    const newId = `hashtag-${Math.random().toString(36).substr(2, 9)}`;
-    return newId;
-
-  } catch (error) {
-    console.error('Erreur lors de la gestion des hashtags:', error);
-    return null;
-  }
-};
-
-
+  };
 
   return (
     <KeyboardAvoidingView
@@ -148,50 +125,45 @@ const findHashtagIdByLabel = async (hashtag: string): Promise<string | null> => 
           />
 
           <TextInput
-        label="Hashtag 1"
-        value={hashtag1.label}
-        onChangeText={(hashtag1) => setHashtag1(hashtag1)}
-        mode="outlined"
-        style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
-      />
-
-      <TextInput
-        label="Hashtag 2"
-        value={hashtag2}
-        onChangeText={(hashtag2) => setHashtag2(hashtag2)}
-        mode="outlined"
-        style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
-      />
-
-      <TextInput
-        label="Hashtag 3"
-        value={hashtag3}
-        onChangeText={(hashtag3) => setHashtag3(hashtag3)}
-        mode="outlined"
-        style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
-      />
+            label="Hashtag 1"
+            value={hashtag1}
+            onChangeText={setHashtag1}
+            mode="outlined"
+            style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
+          />
+          <TextInput
+            label="Hashtag 2"
+            value={hashtag2}
+            onChangeText={setHashtag2}
+            mode="outlined"
+            style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
+          />
+          <TextInput
+            label="Hashtag 3"
+            value={hashtag3}
+            onChangeText={setHashtag3}
+            mode="outlined"
+            style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
+          />
 
           <View style={styles.checkboxContainer}>
             <Checkbox.Item
-              label="Rêve Lucide"
+              label="Rêve lucide"
               status={isLucidDream ? 'checked' : 'unchecked'}
               onPress={() => setIsLucidDream(!isLucidDream)}
+              position="leading"
             />
-          </View>
-
-          <View style={styles.checkboxContainer}>
             <Checkbox.Item
               label="Cauchemar"
               status={isNightmare ? 'checked' : 'unchecked'}
-              onPress={() => setIsNightmare(!isNightmare)}
+              onPress={toggleNightmare}
+              position="leading"
             />
-          </View>
-
-          <View style={styles.checkboxContainer}>
             <Checkbox.Item
-              label="Rêve Normal"
+              label="Rêve normal"
               status={isNormalDream ? 'checked' : 'unchecked'}
-              onPress={() => setIsNormalDream(!isNormalDream)}
+              onPress={toggleNormal}
+              position="leading"
             />
           </View>
 
@@ -218,11 +190,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    gap: 4,
     marginBottom: 16,
   },
   button: {
     marginTop: 8,
   },
-})
+});
