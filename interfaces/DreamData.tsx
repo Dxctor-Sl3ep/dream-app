@@ -10,4 +10,6 @@ export interface DreamData {
   characters: string[];
   location: string;
   personalMeaning: string;
+  emotionalIntensity: number;
+  sleepQuality: number;
 }
