@@ -15,28 +15,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DreamData } from '@/interfaces/DreamData';
 import { AsyncStorageService } from '@/services/AsyncStorageService';
 import { AsyncStorageConfig } from '@/constants/AsyncStorageConfig';
-
+import { Hashtag } from '@/interfaces/DreamData';
 
 const { width } = Dimensions.get('window');
 
 export default function DreamForm() {
   const [dreamText, setDreamText] = useState<string>('');
   const [isLucidDream, setIsLucidDream] = useState<boolean>(false);
+  const [isNightmare, setIsNightmare] = useState<boolean>(false);
+  const [isNormalDream, setIsNormalDream] = useState<boolean>(false);
   const [tagInput, setTagInput] = useState<string>('')
   const [tags, setTags] = useState<string[]>([]);
-  const [hashtag1, setHashtag1] = useState('');
-  const [hashtag2, setHashtag2] = useState('');
-  const [hashtag3, setHashtag3] = useState('');
+  const [hashtag1, setHashtag1] = useState<Hashtag>({label: '', id: ''});
+  const [hashtag2, setHashtag2] = useState<Hashtag>({label: '', id: ''});
+  const [hashtag3, setHashtag3] = useState<Hashtag>({label: '', id: ''});
 
 
-
+  
   const handleDreamSubmission = async (): Promise<void> => {
     try {
 
       const formDataArray: DreamData[] = await AsyncStorageService.getData(AsyncStorageConfig.keys.dreamsArrayKey);
 
       // Ajouter le nouveau rêve
-      formDataArray.push({ dreamText, isLucidDream });
+      formDataArray.push({ dreamText, isLucidDream, hashtag1, hashtag2, hashtag3 });
 
       await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, formDataArray);
 
@@ -97,18 +99,19 @@ export default function DreamForm() {
  * Si le hashtag est trouvé dans les rêves existants, retourne son ID.
  * Sinon, crée un nouvel ID unique pour ce hashtag et le retourne.
  */
-const findHashtagIdByLabel = async (hashtag) => {
+const findHashtagIdByLabel = async (hashtag: string): Promise<string | null> => {
   try {
     // Récupère les données des rêves stockées dans le AsyncStorage
     const existingDreams = await AsyncStorage.getItem('dreamFormDataArray');
-    let dreamsData = existingDreams ? JSON.parse(existingDreams) : [];
+    const dreamsData: any[] = existingDreams ? JSON.parse(existingDreams) : [];
 
     // Parcours tous les rêves pour trouver un hashtag existant
-    for (let dream of dreamsData) {
-      for (let hashtagKey in dream.hashtags) {
-        const hashtagStored = dream.hashtags[hashtagKey]; // Récupère l'objet du hashtag stocké
+    for (const dream of dreamsData) {
+      const hashtags = (dream.hashtags ?? {}) as Record<string, any>;
+      for (const hashtagKey in hashtags) {
+        const hashtagStored = hashtags[hashtagKey]; // Récupère l'objet du hashtag stocké
 
-        if (hashtagStored.label === hashtag) {
+        if (hashtagStored?.label === hashtag) {
           // Si le hashtag est trouvé, renvoie son ID
           return hashtagStored.id;
         }
@@ -146,7 +149,7 @@ const findHashtagIdByLabel = async (hashtag) => {
 
           <TextInput
         label="Hashtag 1"
-        value={hashtag1}
+        value={hashtag1.label}
         onChangeText={(hashtag1) => setHashtag1(hashtag1)}
         mode="outlined"
         style={[styles.input, { width: width * 0.8, alignSelf: 'center' }]}
@@ -173,6 +176,22 @@ const findHashtagIdByLabel = async (hashtag) => {
               label="Rêve Lucide"
               status={isLucidDream ? 'checked' : 'unchecked'}
               onPress={() => setIsLucidDream(!isLucidDream)}
+            />
+          </View>
+
+          <View style={styles.checkboxContainer}>
+            <Checkbox.Item
+              label="Cauchemar"
+              status={isNightmare ? 'checked' : 'unchecked'}
+              onPress={() => setIsNightmare(!isNightmare)}
+            />
+          </View>
+
+          <View style={styles.checkboxContainer}>
+            <Checkbox.Item
+              label="Rêve Normal"
+              status={isNormalDream ? 'checked' : 'unchecked'}
+              onPress={() => setIsNormalDream(!isNormalDream)}
             />
           </View>
 

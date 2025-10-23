@@ -57,16 +57,12 @@ export default function DreamList() {
       <Text style={styles.title}>Liste des Rêves :</Text>
       {dreams.map((dream, index) => (
         <Text key={index} style={styles.dreamText}>
-          {dream.dreamText} - {dream.isLucidDream ? 'Lucide' : 'Non Lucide'} - {dream.todayDate}
-          <br/>
-          Hashtags:
-          <br/>
-          1. {dream.hashtags.hashtag1.id} - {dream.hashtags.hashtag1.label}
-          <br/>
-          2. {dream.hashtags.hashtag2.id} - {dream.hashtags.hashtag2.label}
-          <br/>
-          3. {dream.hashtags.hashtag3.id} - {dream.hashtags.hashtag3.label}
-        </Text>
+	      {dream.dreamText} - {dream.isLucidDream ? 'Lucide' : 'Non Lucide'} - {dream.isNightmare ? 'Cauchemar' : 'Non Cauchemar'} - {dream.isNormalDream ? 'Rêve Normal' : 'Non Rêve Normal'} - {dream.todayDate}
+	      {'\n'}Hashtags:{'\n'}
+	      1. {dream.hashtag1.id} - {dream.hashtag1.label}{'\n'}
+	      2. {dream.hashtag2.id} - {dream.hashtag2.label}{'\n'}
+	      3. {dream.hashtag3.id} - {dream.hashtag3.label}
+	    </Text>
       ))}
     </View>
     );
