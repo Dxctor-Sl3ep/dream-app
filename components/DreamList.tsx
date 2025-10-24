@@ -4,14 +4,14 @@ import { DreamData } from '@/interfaces/DreamData';
 import { AsyncStorageService } from '@/services/AsyncStorageService';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useFocusEffect, useRouter } from 'expo-router'; // [CHANGED] +useRouter
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'; // [CHANGED] +Alert, View
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card } from 'react-native-paper';
 
 export default function DreamList() {
   const [dreams, setDreams] = useState<DreamData[]>([]);
-  const router = useRouter(); // [ADDED]
+  const router = useRouter();
 
   const fetchData = async () => {
     try {
@@ -44,10 +44,9 @@ export default function DreamList() {
     }
   };
 
-  // [ADDED] suppression d'un item par id
   const handleDeleteById = async (id: string) => {
     try {
-      const next = dreams.filter(d => d.id !== id);
+      const next = dreams.filter((d) => d.id !== id);
       await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, next);
       setDreams(next);
     } catch (e) {
@@ -55,7 +54,6 @@ export default function DreamList() {
     }
   };
 
-  // [ADDED] confirmation de suppression
   const confirmDelete = (id: string) => {
     Alert.alert('Supprimer ce rêve ?', 'Action irréversible.', [
       { text: 'Annuler', style: 'cancel' },
@@ -63,103 +61,100 @@ export default function DreamList() {
     ]);
   };
 
+  // [CHANGED] mapping lisible avec émojis
+  const typeLabel = (d: DreamData) => {
+    if (d.isLucidDream) return '🌙 Rêve lucide';
+    if (d.isNightmare) return '😱 Cauchemar';
+    if (d.isNormalDream) return '💤 Rêve normal';
+    return '';
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Liste des Rêves</Text>
+      <Text style={styles.title}>🌙 Liste des Rêves :</Text> {/* [CHANGED] titre avec emoji */}
 
       {dreams.length > 0 ? (
         dreams.map((dream) => (
-          <Card key={dream.id} style={styles.card}> {/* [CHANGED] key = id */}
+          <Card key={dream.id} style={styles.card}>
             <Card.Content>
               <Text style={styles.dreamText}>{dream.dreamText}</Text>
 
               <Text style={styles.lucid}>
-                {dream.isLucidDream
-                  ? 'Rêve Lucide'
-                  : dream.isNightmare
-                  ? 'Cauchemar'
-                  : dream.isNormalDream
-                  ? 'Rêve Normal'
-                  : ''}
+                {typeLabel(dream)} {/* [UNCHANGED] */}
               </Text>
 
               {dream.sleepDate && (
                 <Text style={styles.detail}>
-                  Heure du coucher :{' '}
+                  🕰️ Heure du coucher :{' '}
                   {format(new Date(dream.sleepDate), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
                 </Text>
               )}
 
               {dream.todayDate && (
                 <Text style={styles.detail}>
-                  Date d’enregistrement :{' '}
+                  📅 Date d’enregistrement :{' '}
                   {format(new Date(dream.todayDate), 'dd MMMM yyyy', { locale: fr })}
                 </Text>
               )}
 
               {dream.characters?.length > 0 && (
-                <Text style={styles.detail}>Personnages : {dream.characters.join(', ')}</Text>
+                <Text style={styles.detail}>👥 Personnages : {dream.characters.join(', ')}</Text>
               )}
 
-              {dream.location && <Text style={styles.detail}>Lieu : {dream.location}</Text>}
+              {dream.location && <Text style={styles.detail}>📍 Lieu : {dream.location}</Text>}
 
               {dream.personalMeaning && (
                 <Text style={styles.detail}>
-                  Signification personnelle : {dream.personalMeaning}
+                  💭 Signification personnelle : {dream.personalMeaning}
                 </Text>
               )}
 
               <Text style={styles.detail}>
-                Intensité émotionnelle : {dream.emotionalIntensity ?? '-'} /10
+                😵 Intensité émotionnelle : {dream.emotionalIntensity ?? '-'} / 10
               </Text>
 
               <Text style={styles.detail}>
-                Qualité du sommeil : {dream.sleepQuality ?? '-'} /10
+                🛌 Qualité du sommeil : {dream.sleepQuality ?? '-'} / 10
               </Text>
 
               {(dream.hashtags?.hashtag1?.label ||
                 dream.hashtags?.hashtag2?.label ||
                 dream.hashtags?.hashtag3?.label) && (
                 <Text style={styles.detail}>
-                  Hashtags :{' '}
+                  🏷️ Hashtags :{' '}
                   {[dream.hashtags?.hashtag1?.label, dream.hashtags?.hashtag2?.label, dream.hashtags?.hashtag3?.label]
                     .filter(Boolean)
                     .join(', ')}
                 </Text>
               )}
 
-              {dream.tone && <Text style={styles.detail}>Tonalité : {dream.tone}</Text>}
+              {dream.tone && <Text style={styles.detail}>🎛️ Tonalité : {dream.tone}</Text>}
 
               {dream.clarity !== undefined && (
-                <Text style={styles.detail}>Clarté : {dream.clarity}/10</Text>
+                <Text style={styles.detail}>🔎 Clarté : {dream.clarity}/10</Text>
               )}
 
               {(dream.emotionBefore !== undefined || dream.emotionAfter !== undefined) && (
                 <>
                   {dream.emotionBefore !== undefined && (
-                    <Text style={styles.detail}>Émotion avant : {dream.emotionBefore}/10</Text>
+                    <Text style={styles.detail}>💗 Émotion avant : {dream.emotionBefore}/10</Text>
                   )}
                   {dream.emotionAfter !== undefined && (
-                    <Text style={styles.detail}>Émotion après : {dream.emotionAfter}/10</Text>
+                    <Text style={styles.detail}>💖 Émotion après : {dream.emotionAfter}/10</Text>
                   )}
                 </>
               )}
 
-              {/* [ADDED] Actions Edit/Supprimer */}
               <View style={styles.actions}>
                 <Button
                   mode="outlined"
                   onPress={() => router.push({ pathname: '/modal', params: { id: dream.id } })}
                   style={styles.actionBtn}
                 >
-                  Éditer
+                  ✏️ Éditer
                 </Button>
-                <Button
-                  mode="contained"
-                  onPress={() => confirmDelete(dream.id)}
-                  style={styles.actionBtn}
-                >
-                  Supprimer
+                <Button mode="contained" onPress={() => confirmDelete(dream.id)} style={styles.actionBtn}>
+                  🗑️ Supprimer
                 </Button>
               </View>
             </Card.Content>
@@ -178,50 +173,13 @@ export default function DreamList() {
 
 const styles = StyleSheet.create({
   container: { padding: 16 },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  card: {
-    marginBottom: 12,
-    borderRadius: 12,
-    backgroundColor: '#f8f8f8',
-    elevation: 2,
-  },
-  dreamText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 6,
-  },
-  lucid: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  detail: {
-    fontSize: 14,
-    color: '#333',
-    marginTop: 2,
-  },
-  noDream: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#777',
-    marginTop: 20,
-  },
-  button: {
-    marginTop: 20,
-    alignSelf: 'center',
-    width: '70%',
-  },
-  actions: { // [ADDED]
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 12,
-  },
-  actionBtn: { // [ADDED]
-    marginLeft: 8,
-  },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
+  card: { marginBottom: 12, borderRadius: 12, backgroundColor: '#f8f8f8', elevation: 2 },
+  dreamText: { fontSize: 16, fontWeight: '500', marginBottom: 6 },
+  lucid: { fontSize: 14, marginBottom: 4 },
+  detail: { fontSize: 14, color: '#333', marginTop: 2 },
+  noDream: { fontSize: 16, textAlign: 'center', color: '#777', marginTop: 20 },
+  button: { marginTop: 20, alignSelf: 'center', width: '70%' },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
+  actionBtn: { marginLeft: 8 },
 });
