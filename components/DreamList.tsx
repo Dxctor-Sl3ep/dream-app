@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native'; // [CHANGED] +Platform
 import { Button, Card } from 'react-native-paper';
 
 export default function DreamList() {
@@ -54,24 +54,30 @@ export default function DreamList() {
     }
   };
 
+  // [CHANGED] Confirmation cross-platform : Alert natif / confirm() web
   const confirmDelete = (id: string) => {
+    if (Platform.OS === 'web') {
+      // @ts-ignore — window.confirm est dispo sur web
+      const ok = window.confirm('Supprimer ce rêve ? Action irréversible.');
+      if (ok) handleDeleteById(id);
+      return;
+    }
     Alert.alert('Supprimer ce rêve ?', 'Action irréversible.', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: () => handleDeleteById(id) },
     ]);
   };
 
-  // [CHANGED] mapping lisible avec émojis
   const typeLabel = (d: DreamData) => {
     if (d.isLucidDream) return '🌙 Rêve lucide';
     if (d.isNightmare) return '😱 Cauchemar';
     if (d.isNormalDream) return '💤 Rêve normal';
     return '';
-  };
+    };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🌙 Liste des Rêves :</Text> {/* [CHANGED] titre avec emoji */}
+      <Text style={styles.title}>🌙 Liste des Rêves :</Text>
 
       {dreams.length > 0 ? (
         dreams.map((dream) => (
@@ -79,9 +85,7 @@ export default function DreamList() {
             <Card.Content>
               <Text style={styles.dreamText}>{dream.dreamText}</Text>
 
-              <Text style={styles.lucid}>
-                {typeLabel(dream)} {/* [UNCHANGED] */}
-              </Text>
+              <Text style={styles.lucid}>{typeLabel(dream)}</Text>
 
               {dream.sleepDate && (
                 <Text style={styles.detail}>
