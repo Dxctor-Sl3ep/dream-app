@@ -17,6 +17,10 @@ import {
 } from 'react-native';
 import { Button, Checkbox, TextInput } from 'react-native-paper';
 
+// ✅ Import web-only date picker
+import ReactDatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+
 const { width } = Dimensions.get('window');
 
 export default function DreamForm() {
@@ -41,10 +45,9 @@ export default function DreamForm() {
   const [hashtag1, setHashtag1] = useState('');
   const [hashtag2, setHashtag2] = useState('');
   const [hashtag3, setHashtag3] = useState('');
-
   const [submitting, setSubmitting] = useState(false);
 
-  // [ADDED] Exclusivité des 3 types
+  // ✅ Exclusivité des 3 types
   const selectType = (type: 'lucid' | 'nightmare' | 'normal') => {
     setIsLucidDream(type === 'lucid');
     setIsNightmare(type === 'nightmare');
@@ -65,7 +68,7 @@ export default function DreamForm() {
         .filter((char) => char.length > 0);
 
       const newDream: DreamData = {
-        id: `dream_${Date.now()}`, // [ADDED]
+        id: `dream_${Date.now()}`,
         dreamText,
         isLucidDream,
         isNightmare,
@@ -79,13 +82,13 @@ export default function DreamForm() {
           hashtag2: { id: `h2-${Date.now()}`, label: hashtag2 },
           hashtag3: { id: `h3-${Date.now()}`, label: hashtag3 },
         },
-        todayDate: new Date().toISOString(), // [CHANGED] ISO string
+        todayDate: new Date().toISOString(),
         characters,
         location,
         personalMeaning,
         emotionalIntensity,
         sleepQuality,
-        sleepDate: sleepDate.toISOString(), // [CHANGED] ISO string
+        sleepDate: sleepDate.toISOString(),
       };
 
       formDataArray.push(newDream);
@@ -121,11 +124,9 @@ export default function DreamForm() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* [CHANGED] suppression de TouchableWithoutFeedback + Keyboard.dismiss
-          [ADDED] keyboardShouldPersistTaps="always" pour éviter la perte de focus */}
       <ScrollView
         contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="always" // [ADDED]
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
       >
         {/* Texte du rêve */}
@@ -137,25 +138,25 @@ export default function DreamForm() {
           multiline
           numberOfLines={6}
           style={[styles.input, { width: width * 0.8 }]}
-          autoFocus // [ADDED] focus immédiat pour pouvoir écrire sans rester appuyé
+          autoFocus
         />
 
-        {/* Types de rêve — exclusifs */}
+        {/* Types de rêve */}
         <View style={styles.checkboxContainer}>
           <Checkbox.Item
             label="🌙 Rêve lucide"
             status={isLucidDream ? 'checked' : 'unchecked'}
-            onPress={() => selectType('lucid')} // [CHANGED]
+            onPress={() => selectType('lucid')}
           />
           <Checkbox.Item
             label="😱 Cauchemar"
             status={isNightmare ? 'checked' : 'unchecked'}
-            onPress={() => selectType('nightmare')} // [CHANGED]
+            onPress={() => selectType('nightmare')}
           />
           <Checkbox.Item
             label="💤 Rêve normal"
             status={isNormalDream ? 'checked' : 'unchecked'}
-            onPress={() => selectType('normal')} // [CHANGED]
+            onPress={() => selectType('normal')}
           />
         </View>
 
@@ -188,15 +189,22 @@ export default function DreamForm() {
         <TextInput label="📍 Lieu du rêve" value={location} onChangeText={setLocation} mode="outlined" style={styles.input} />
         <TextInput label="💭 Signification personnelle" value={personalMeaning} onChangeText={setPersonalMeaning} mode="outlined" multiline numberOfLines={3} style={styles.input} />
 
-        {/* Date du sommeil */}
+        {/* --- Sélecteur de date et heure du sommeil --- */}
         <View style={styles.dateTimeContainer}>
           <Text style={styles.sliderLabel}>🕰️ Heure du coucher :</Text>
+
           {Platform.OS === 'web' ? (
-            // si vous gardez react-datepicker côté web, ajoutez-le ici
-            <Text style={styles.sliderLabel}>
-              {format(sleepDate, "dd/MM/yyyy 'à' HH:mm")}
-            </Text>
+            // ✅ Version Web : ReactDatePicker interactif
+            <ReactDatePicker
+              selected={sleepDate}
+              onChange={(date: Date) => setSleepDate(date)}
+              showTimeSelect
+              dateFormat="dd/MM/yyyy à HH:mm"
+              timeIntervals={15}
+              className="react-datepicker-input"
+            />
           ) : (
+            // ✅ Version native : DateTimePicker
             <>
               <Button mode="outlined" onPress={() => setShowPicker(true)}>
                 Choisir : {format(sleepDate, "dd/MM/yyyy 'à' HH:mm")}
