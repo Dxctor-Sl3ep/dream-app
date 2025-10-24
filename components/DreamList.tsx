@@ -5,74 +5,84 @@ import { AsyncStorageService } from '@/services/AsyncStorageService';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react'; // [CHANGED] +useRef
+import 'expo-standard-web-crypto'; // WebCrypto polyfill Expo
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Modal,
   Platform,
   ScrollView,
-  Share, // [ADDED]
+  Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Button, Card } from 'react-native-paper';
+import { Button, Card, TextInput } from 'react-native-paper';
+
+const FORCE_ENCRYPTED_EXPORT = true as const; // sécurité compile-time
 
 export default function DreamList() {
   const [dreams, setDreams] = useState<DreamData[]>([]);
   const router = useRouter();
-
-  // [ADDED] input fichier caché (web)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const fetchData = async () => {
-    try {
-      const formDataArray: DreamData[] = await AsyncStorageService.getData(
-        AsyncStorageConfig.keys.dreamsArrayKey
-      );
-      setDreams(formDataArray || []);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des données:', error);
+  // ===== Prompt mot de passe =====
+  const [pwdVisible, setPwdVisible] = useState(false);
+  const [pwdLabel, setPwdLabel] = useState('Mot de passe');
+  const [pwdValue, setPwdValue] = useState('');
+  const pwdResolveRef = useRef<null | ((v: string | null) => void)>(null);
+
+  const promptPassword = (label: string): Promise<string | null> => {
+    if (Platform.OS === 'web') {
+      // @ts-ignore
+      const v = window.prompt(label);
+      return Promise.resolve(v ?? null);
     }
+    setPwdLabel(label);
+    setPwdValue('');
+    setPwdVisible(true);
+    return new Promise((resolve) => (pwdResolveRef.current = resolve));
+  };
+  const closePwd = (val: string | null) => {
+    setPwdVisible(false);
+    const r = pwdResolveRef.current;
+    pwdResolveRef.current = null;
+    r && r(val);
   };
 
+  // ===== Data =====
+  const fetchData = async () => {
+    try {
+      const arr: DreamData[] = await AsyncStorageService.getData(
+        AsyncStorageConfig.keys.dreamsArrayKey
+      );
+      setDreams(arr || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
   useEffect(() => {
     fetchData();
   }, []);
-
   useFocusEffect(
     useCallback(() => {
       fetchData();
       return () => {};
     }, [])
   );
-
   const persist = async (arr: DreamData[]) => {
     await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, arr);
     setDreams(arr);
   };
 
-  const handleResetDreams = async (): Promise<void> => {
-    try {
-      await persist([]);
-    } catch (error) {
-      console.error('Erreur lors de la réinitialisation des données:', error);
-    }
-  };
-
+  const handleResetDreams = async () => await persist([]);
   const handleDeleteById = async (id: string) => {
-    try {
-      const next = dreams.filter((d) => d.id !== id);
-      await persist(next);
-    } catch (e) {
-      console.error('Suppression impossible:', e);
-    }
+    await persist(dreams.filter((d) => d.id !== id));
   };
-
-  // Confirmation cross-platform
   const confirmDelete = (id: string) => {
     if (Platform.OS === 'web') {
-      const ok = window.confirm('Supprimer ce rêve ? Action irréversible.');
-      if (ok) handleDeleteById(id);
+      // @ts-ignore
+      if (window.confirm('Supprimer ce rêve ?')) handleDeleteById(id);
       return;
     }
     Alert.alert('Supprimer ce rêve ?', 'Action irréversible.', [
@@ -81,39 +91,115 @@ export default function DreamList() {
     ]);
   };
 
-  // [ADDED] Export/partage d’un rêve (JSON)
-  const shareDream = async (dream: DreamData) => {
+  // ===== Encodage =====
+  const te = new TextEncoder();
+  // @ts-ignore
+  const td = typeof TextDecoder !== 'undefined' ? new TextDecoder() : undefined;
+  const utf8Decode = (b: Uint8Array) =>
+    td ? td.decode(b) : String.fromCharCode(...b);
+  const toHex = (u8: Uint8Array) =>
+    Array.from(u8)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  const fromHex = (hex: string) => {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++)
+      out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    return out;
+  };
+
+  // ===== AES-GCM (Expo WebCrypto) =====
+  const subtle = () => {
+    const s = (globalThis as any).crypto?.subtle;
+    if (!s) throw new Error('WebCrypto indisponible');
+    return s;
+  };
+  const rand = (n: number) => {
+    const a = new Uint8Array(n);
+    // @ts-ignore
+    (globalThis.crypto as any).getRandomValues(a);
+    return a;
+  };
+  const deriveKey = async (pwd: string, salt: Uint8Array) => {
+    const base = await subtle().importKey('raw', te.encode(pwd), { name: 'PBKDF2' }, false, [
+      'deriveKey',
+    ]);
+    return subtle().deriveKey(
+      { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
+      base,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  };
+  const encryptPayload = async (plaintext: string, pwd: string) => {
+    const salt = rand(16);
+    const iv = rand(12);
+    const key = await deriveKey(pwd, salt);
+    const ctBuf = await subtle().encrypt({ name: 'AES-GCM', iv }, key, te.encode(plaintext));
+    return JSON.stringify({
+      _enc: 'AESGCMv1',
+      s: toHex(salt),
+      iv: toHex(iv),
+      ct: toHex(new Uint8Array(ctBuf)),
+    });
+  };
+  const decryptPayload = async (packet: any, pwd: string) => {
+    if (!packet || packet._enc !== 'AESGCMv1') throw new Error('Format inconnu');
+    const key = await deriveKey(pwd, fromHex(packet.s));
+    const pt = await subtle().decrypt(
+      { name: 'AES-GCM', iv: fromHex(packet.iv) },
+      key,
+      fromHex(packet.ct)
+    );
+    return utf8Decode(new Uint8Array(pt as ArrayBuffer));
+  };
+
+  // ===== Export chiffré (obligatoire) =====
+  const shareDreamEncrypted = async (dream: DreamData) => {
+    if (!FORCE_ENCRYPTED_EXPORT)
+      throw new Error('Export non chiffré interdit');
+
+    const pwd = await promptPassword('Mot de passe pour chiffrer ce rêve');
+    if (!pwd) return;
+
+    const packet = await encryptPayload(JSON.stringify(dream), pwd);
+
+    // Validation stricte
+    let parsed: any = null;
     try {
-      const payload = JSON.stringify(dream, null, 2);
-      if (Platform.OS === 'web') {
-        const blob = new Blob([payload], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${dream.id || 'dream'}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } else {
-        await Share.share({ message: payload }); // simple, universel
-      }
-    } catch (e) {
-      console.error('Partage/export impossible:', e);
+      parsed = JSON.parse(packet);
+    } catch {}
+    if (!parsed || parsed._enc !== 'AESGCMv1') {
+      throw new Error('Paquet non chiffré détecté');
+    }
+
+    const filename = `${dream.id || 'dream'}.enc.json`;
+    if (Platform.OS === 'web') {
+      const blob = new Blob([JSON.stringify(parsed)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } else {
+      await Share.share({ message: JSON.stringify(parsed) });
     }
   };
 
-  // [ADDED] Import .json (web). Accepte un objet DreamData ou un tableau d’objets.
+  // ===== Import clair ou chiffré =====
   const triggerImport = () => {
     if (Platform.OS === 'web') fileInputRef.current?.click();
-    else Alert.alert('Import', 'Import JSON disponible sur la cible web dans cette version.');
+    else Alert.alert('Import', 'Disponible sur la cible web.');
   };
-
-  // [ADDED] Normalisation + merge
   const normalizeDream = (raw: any): DreamData | null => {
     if (!raw || typeof raw !== 'object') return null;
-    const id = raw.id || `dream_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const dream: DreamData = {
+    const id =
+      raw.id || `dream_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return {
       id,
       dreamText: String(raw.dreamText ?? ''),
       isLucidDream: !!raw.isLucidDream,
@@ -121,61 +207,78 @@ export default function DreamList() {
       isNormalDream: !!raw.isNormalDream,
       tone: raw.tone ?? null,
       clarity: Number.isFinite(raw.clarity) ? Number(raw.clarity) : undefined,
-      emotionBefore: Number.isFinite(raw.emotionBefore) ? Number(raw.emotionBefore) : undefined,
-      emotionAfter: Number.isFinite(raw.emotionAfter) ? Number(raw.emotionAfter) : undefined,
+      emotionBefore: Number.isFinite(raw.emotionBefore)
+        ? Number(raw.emotionBefore)
+        : undefined,
+      emotionAfter: Number.isFinite(raw.emotionAfter)
+        ? Number(raw.emotionAfter)
+        : undefined,
       hashtags: raw.hashtags ?? undefined,
       todayDate: raw.todayDate ?? new Date().toISOString(),
-      characters: Array.isArray(raw.characters) ? raw.characters.map(String) : [],
+      characters: Array.isArray(raw.characters)
+        ? raw.characters.map(String)
+        : [],
       location: raw.location ?? '',
       personalMeaning: raw.personalMeaning ?? '',
-      emotionalIntensity: Number.isFinite(raw.emotionalIntensity) ? Number(raw.emotionalIntensity) : undefined,
-      sleepQuality: Number.isFinite(raw.sleepQuality) ? Number(raw.sleepQuality) : undefined,
+      emotionalIntensity: Number.isFinite(raw.emotionalIntensity)
+        ? Number(raw.emotionalIntensity)
+        : undefined,
+      sleepQuality: Number.isFinite(raw.sleepQuality)
+        ? Number(raw.sleepQuality)
+        : undefined,
       sleepDate: raw.sleepDate ?? new Date().toISOString(),
     };
-    return dream;
   };
-
-  // [ADDED] Handler changement de fichier (web)
   const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (ev) => {
     try {
       const file = ev.target.files?.[0];
       if (!file) return;
       const text = await file.text();
-      const json = JSON.parse(text);
+      let data: any;
+      try {
+        const maybe = JSON.parse(text);
+        if (maybe && maybe._enc === 'AESGCMv1') {
+          const pwd = await promptPassword('Mot de passe du fichier chiffré');
+          if (!pwd) return;
+          const clear = await decryptPayload(maybe, pwd);
+          data = JSON.parse(clear);
+        } else data = maybe;
+      } catch {
+        data = JSON.parse(text);
+      }
 
-      const incoming: DreamData[] = Array.isArray(json)
-        ? json.map(normalizeDream).filter(Boolean) as DreamData[]
-        : [normalizeDream(json)].filter(Boolean) as DreamData[];
-
+      const incoming: DreamData[] = Array.isArray(data)
+        ? (data.map(normalizeDream).filter(Boolean) as DreamData[])
+        : ([normalizeDream(data)].filter(Boolean) as DreamData[]);
       if (incoming.length === 0) {
         Alert.alert('Import', 'Fichier sans rêve valide.');
         ev.target.value = '';
         return;
       }
 
-      // fusion par id (remplace si id identique)
       const map = new Map<string, DreamData>(dreams.map((d) => [d.id, d]));
       incoming.forEach((d) => map.set(d.id, d));
-      const merged = Array.from(map.values());
-
-      await persist(merged);
-      if (Platform.OS === 'web') alert(`Import terminé: ${incoming.length} rêve(s).`);
+      await persist(Array.from(map.values()));
+      if (Platform.OS === 'web')
+        alert(`Import terminé: ${incoming.length} rêve(s).`);
     } catch (e) {
       console.error('Import échoué:', e);
-      Alert.alert('Import', 'Impossible de lire le fichier JSON.');
+      Alert.alert('Import', 'Impossible de lire le fichier.');
     } finally {
-      // reset pour permettre ré-import du même fichier
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const typeLabel = (d: DreamData) => {
-    if (d.isLucidDream) return '🌙 Rêve lucide';
-    if (d.isNightmare) return '😱 Cauchemar';
-    if (d.isNormalDream) return '💤 Rêve normal';
-    return '';
-  };
+  const typeLabel = (d: DreamData) =>
+    d.isLucidDream
+      ? '🌙 Rêve lucide'
+      : d.isNightmare
+      ? '😱 Cauchemar'
+      : d.isNormalDream
+      ? '💤 Rêve normal'
+      : '';
 
+  // ===== Render =====
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>🌙 Liste des Rêves :</Text>
@@ -185,89 +288,69 @@ export default function DreamList() {
           <Card key={dream.id} style={styles.card}>
             <Card.Content>
               <Text style={styles.dreamText}>{dream.dreamText}</Text>
-
               <Text style={styles.lucid}>{typeLabel(dream)}</Text>
 
               {dream.sleepDate && (
                 <Text style={styles.detail}>
                   🕰️ Heure du coucher :{' '}
-                  {format(new Date(dream.sleepDate), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
+                  {format(new Date(dream.sleepDate), "dd MMMM yyyy 'à' HH:mm", {
+                    locale: fr,
+                  })}
                 </Text>
               )}
-
               {dream.todayDate && (
                 <Text style={styles.detail}>
                   📅 Date d’enregistrement :{' '}
-                  {format(new Date(dream.todayDate), 'dd MMMM yyyy', { locale: fr })}
+                  {format(new Date(dream.todayDate), 'dd MMMM yyyy', {
+                    locale: fr,
+                  })}
                 </Text>
               )}
-
               {dream.characters?.length > 0 && (
-                <Text style={styles.detail}>👥 Personnages : {dream.characters.join(', ')}</Text>
+                <Text style={styles.detail}>
+                  👥 Personnages : {dream.characters.join(', ')}
+                </Text>
               )}
-
-              {dream.location && <Text style={styles.detail}>📍 Lieu : {dream.location}</Text>}
-
+              {dream.location && (
+                <Text style={styles.detail}>📍 Lieu : {dream.location}</Text>
+              )}
               {dream.personalMeaning && (
                 <Text style={styles.detail}>
                   💭 Signification personnelle : {dream.personalMeaning}
                 </Text>
               )}
-
               <Text style={styles.detail}>
                 😵 Intensité émotionnelle : {dream.emotionalIntensity ?? '-'} / 10
               </Text>
-
               <Text style={styles.detail}>
                 🛌 Qualité du sommeil : {dream.sleepQuality ?? '-'} / 10
               </Text>
 
-              {(dream.hashtags?.hashtag1?.label ||
-                dream.hashtags?.hashtag2?.label ||
-                dream.hashtags?.hashtag3?.label) && (
-                <Text style={styles.detail}>
-                  🏷️ Hashtags :{' '}
-                  {[dream.hashtags?.hashtag1?.label, dream.hashtags?.hashtag2?.label, dream.hashtags?.hashtag3?.label]
-                    .filter(Boolean)
-                    .join(', ')}
-                </Text>
-              )}
-
-              {dream.tone && <Text style={styles.detail}>🎛️ Tonalité : {dream.tone}</Text>}
-
-              {dream.clarity !== undefined && (
-                <Text style={styles.detail}>🔎 Clarté : {dream.clarity}/10</Text>
-              )}
-
-              {(dream.emotionBefore !== undefined || dream.emotionAfter !== undefined) && (
-                <>
-                  {dream.emotionBefore !== undefined && (
-                    <Text style={styles.detail}>💗 Émotion avant : {dream.emotionBefore}/10</Text>
-                  )}
-                  {dream.emotionAfter !== undefined && (
-                    <Text style={styles.detail}>💖 Émotion après : {dream.emotionAfter}/10</Text>
-                  )}
-                </>
-              )}
-
               <View style={styles.actions}>
                 <Button
                   mode="outlined"
-                  onPress={() => router.push({ pathname: '/modal', params: { id: dream.id } })}
+                  onPress={() =>
+                    router.push({ pathname: '/modal', params: { id: dream.id } })
+                  }
                   style={styles.actionBtn}
                 >
                   ✏️ Éditer
                 </Button>
 
+                {/* unique export chiffré */}
                 <Button
                   mode="outlined"
-                  onPress={() => shareDream(dream)} // [ADDED] bouton partage/export JSON
+                  onPress={() => shareDreamEncrypted(dream)}
                   style={styles.actionBtn}
                 >
-                  📤 Partager
+                  🔐 Partager (chiffré)
                 </Button>
 
-                <Button mode="contained" onPress={() => confirmDelete(dream.id)} style={styles.actionBtn}>
+                <Button
+                  mode="contained"
+                  onPress={() => confirmDelete(dream.id)}
+                  style={styles.actionBtn}
+                >
                   🗑️ Supprimer
                 </Button>
               </View>
@@ -278,18 +361,15 @@ export default function DreamList() {
         <Text style={styles.noDream}>Aucun rêve enregistré</Text>
       )}
 
-      {/* Zone actions bas de page */}
       <View style={styles.bottomActions}>
         <Button mode="contained" onPress={handleResetDreams} style={styles.bottomBtn}>
           Réinitialiser les rêves
         </Button>
-
         <Button mode="outlined" onPress={triggerImport} style={styles.bottomBtn}>
           📥 Importer un rêve
         </Button>
       </View>
 
-      {/* [ADDED] input fichier caché pour web */}
       {Platform.OS === 'web' && (
         <input
           ref={fileInputRef}
@@ -299,20 +379,87 @@ export default function DreamList() {
           onChange={onFileSelected}
         />
       )}
+
+      {/* Modal mot de passe mobile */}
+      <Modal
+        transparent
+        visible={pwdVisible}
+        animationType="fade"
+        onRequestClose={() => closePwd(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{pwdLabel}</Text>
+            <TextInput
+              mode="outlined"
+              secureTextEntry
+              value={pwdValue}
+              onChangeText={setPwdValue}
+              placeholder="Mot de passe"
+            />
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}
+            >
+              <Button onPress={() => closePwd(null)} style={{ marginRight: 8 }}>
+                Annuler
+              </Button>
+              <Button mode="contained" onPress={() => closePwd(pwdValue || '')}>
+                Valider
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 16 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
-  card: { marginBottom: 12, borderRadius: 12, backgroundColor: '#f8f8f8', elevation: 2 },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  card: {
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8f8f8',
+    elevation: 2,
+  },
   dreamText: { fontSize: 16, fontWeight: '500', marginBottom: 6 },
   lucid: { fontSize: 14, marginBottom: 4 },
   detail: { fontSize: 14, color: '#333', marginTop: 2 },
   noDream: { fontSize: 16, textAlign: 'center', color: '#777', marginTop: 20 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
-  actionBtn: { marginLeft: 8 },
-  bottomActions: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 20 },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 12,
+  },
+  actionBtn: { marginLeft: 8, marginTop: 6 },
+  bottomActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 20,
+    flexWrap: 'wrap',
+  },
   bottomBtn: { alignSelf: 'center' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCard: {
+    width: '85%',
+    maxWidth: 420,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
 });
