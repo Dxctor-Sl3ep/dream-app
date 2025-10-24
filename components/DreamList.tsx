@@ -5,13 +5,24 @@ import { AsyncStorageService } from '@/services/AsyncStorageService';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native'; // [CHANGED] +Platform
+import React, { useCallback, useEffect, useRef, useState } from 'react'; // [CHANGED] +useRef
+import {
+  Alert,
+  Platform,
+  ScrollView,
+  Share, // [ADDED]
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Button, Card } from 'react-native-paper';
 
 export default function DreamList() {
   const [dreams, setDreams] = useState<DreamData[]>([]);
   const router = useRouter();
+
+  // [ADDED] input fichier caché (web)
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchData = async () => {
     try {
@@ -35,10 +46,14 @@ export default function DreamList() {
     }, [])
   );
 
+  const persist = async (arr: DreamData[]) => {
+    await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, arr);
+    setDreams(arr);
+  };
+
   const handleResetDreams = async (): Promise<void> => {
     try {
-      await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, []);
-      setDreams([]);
+      await persist([]);
     } catch (error) {
       console.error('Erreur lors de la réinitialisation des données:', error);
     }
@@ -47,17 +62,15 @@ export default function DreamList() {
   const handleDeleteById = async (id: string) => {
     try {
       const next = dreams.filter((d) => d.id !== id);
-      await AsyncStorageService.setData(AsyncStorageConfig.keys.dreamsArrayKey, next);
-      setDreams(next);
+      await persist(next);
     } catch (e) {
       console.error('Suppression impossible:', e);
     }
   };
 
-  // [CHANGED] Confirmation cross-platform : Alert natif / confirm() web
+  // Confirmation cross-platform
   const confirmDelete = (id: string) => {
     if (Platform.OS === 'web') {
-      // @ts-ignore — window.confirm est dispo sur web
       const ok = window.confirm('Supprimer ce rêve ? Action irréversible.');
       if (ok) handleDeleteById(id);
       return;
@@ -68,12 +81,100 @@ export default function DreamList() {
     ]);
   };
 
+  // [ADDED] Export/partage d’un rêve (JSON)
+  const shareDream = async (dream: DreamData) => {
+    try {
+      const payload = JSON.stringify(dream, null, 2);
+      if (Platform.OS === 'web') {
+        const blob = new Blob([payload], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${dream.id || 'dream'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        await Share.share({ message: payload }); // simple, universel
+      }
+    } catch (e) {
+      console.error('Partage/export impossible:', e);
+    }
+  };
+
+  // [ADDED] Import .json (web). Accepte un objet DreamData ou un tableau d’objets.
+  const triggerImport = () => {
+    if (Platform.OS === 'web') fileInputRef.current?.click();
+    else Alert.alert('Import', 'Import JSON disponible sur la cible web dans cette version.');
+  };
+
+  // [ADDED] Normalisation + merge
+  const normalizeDream = (raw: any): DreamData | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const id = raw.id || `dream_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const dream: DreamData = {
+      id,
+      dreamText: String(raw.dreamText ?? ''),
+      isLucidDream: !!raw.isLucidDream,
+      isNightmare: !!raw.isNightmare,
+      isNormalDream: !!raw.isNormalDream,
+      tone: raw.tone ?? null,
+      clarity: Number.isFinite(raw.clarity) ? Number(raw.clarity) : undefined,
+      emotionBefore: Number.isFinite(raw.emotionBefore) ? Number(raw.emotionBefore) : undefined,
+      emotionAfter: Number.isFinite(raw.emotionAfter) ? Number(raw.emotionAfter) : undefined,
+      hashtags: raw.hashtags ?? undefined,
+      todayDate: raw.todayDate ?? new Date().toISOString(),
+      characters: Array.isArray(raw.characters) ? raw.characters.map(String) : [],
+      location: raw.location ?? '',
+      personalMeaning: raw.personalMeaning ?? '',
+      emotionalIntensity: Number.isFinite(raw.emotionalIntensity) ? Number(raw.emotionalIntensity) : undefined,
+      sleepQuality: Number.isFinite(raw.sleepQuality) ? Number(raw.sleepQuality) : undefined,
+      sleepDate: raw.sleepDate ?? new Date().toISOString(),
+    };
+    return dream;
+  };
+
+  // [ADDED] Handler changement de fichier (web)
+  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (ev) => {
+    try {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const json = JSON.parse(text);
+
+      const incoming: DreamData[] = Array.isArray(json)
+        ? json.map(normalizeDream).filter(Boolean) as DreamData[]
+        : [normalizeDream(json)].filter(Boolean) as DreamData[];
+
+      if (incoming.length === 0) {
+        Alert.alert('Import', 'Fichier sans rêve valide.');
+        ev.target.value = '';
+        return;
+      }
+
+      // fusion par id (remplace si id identique)
+      const map = new Map<string, DreamData>(dreams.map((d) => [d.id, d]));
+      incoming.forEach((d) => map.set(d.id, d));
+      const merged = Array.from(map.values());
+
+      await persist(merged);
+      if (Platform.OS === 'web') alert(`Import terminé: ${incoming.length} rêve(s).`);
+    } catch (e) {
+      console.error('Import échoué:', e);
+      Alert.alert('Import', 'Impossible de lire le fichier JSON.');
+    } finally {
+      // reset pour permettre ré-import du même fichier
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const typeLabel = (d: DreamData) => {
     if (d.isLucidDream) return '🌙 Rêve lucide';
     if (d.isNightmare) return '😱 Cauchemar';
     if (d.isNormalDream) return '💤 Rêve normal';
     return '';
-    };
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -157,6 +258,15 @@ export default function DreamList() {
                 >
                   ✏️ Éditer
                 </Button>
+
+                <Button
+                  mode="outlined"
+                  onPress={() => shareDream(dream)} // [ADDED] bouton partage/export JSON
+                  style={styles.actionBtn}
+                >
+                  📤 Partager
+                </Button>
+
                 <Button mode="contained" onPress={() => confirmDelete(dream.id)} style={styles.actionBtn}>
                   🗑️ Supprimer
                 </Button>
@@ -168,9 +278,27 @@ export default function DreamList() {
         <Text style={styles.noDream}>Aucun rêve enregistré</Text>
       )}
 
-      <Button mode="contained" onPress={handleResetDreams} style={styles.button}>
-        Réinitialiser les rêves
-      </Button>
+      {/* Zone actions bas de page */}
+      <View style={styles.bottomActions}>
+        <Button mode="contained" onPress={handleResetDreams} style={styles.bottomBtn}>
+          Réinitialiser les rêves
+        </Button>
+
+        <Button mode="outlined" onPress={triggerImport} style={styles.bottomBtn}>
+          📥 Importer un rêve
+        </Button>
+      </View>
+
+      {/* [ADDED] input fichier caché pour web */}
+      {Platform.OS === 'web' && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          style={{ display: 'none' }}
+          onChange={onFileSelected}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -183,7 +311,8 @@ const styles = StyleSheet.create({
   lucid: { fontSize: 14, marginBottom: 4 },
   detail: { fontSize: 14, color: '#333', marginTop: 2 },
   noDream: { fontSize: 16, textAlign: 'center', color: '#777', marginTop: 20 },
-  button: { marginTop: 20, alignSelf: 'center', width: '70%' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
   actionBtn: { marginLeft: 8 },
+  bottomActions: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 20 },
+  bottomBtn: { alignSelf: 'center' },
 });
